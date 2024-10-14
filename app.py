@@ -1,29 +1,81 @@
 import streamlit as st
-import pickle
+import joblib
+import string
+import re
+import spacy
+import time
 
-# Load the saved model and vectorizer
-model = pickle.load(open('spam_detection_model.pkl', 'rb'))
-vectorizer = pickle.load(open('count_vectorizer.pkl', 'rb'))
+st.set_page_config(page_title="Spam Email Detection",page_icon="✉️")
 
-# Streamlit app title
-st.title("Spam Email Detection")
+@st.cache_resource(ttl=3600)
+def load_model():
+    learn_inf = joblib.load('checkpoints/spam_detection_model.pkl')
+    vectorizer = joblib.load('checkpoints/count_vectorizer.pkl')
+    return learn_inf,vectorizer
 
-# Input from the user
-input_email = st.text_area("Enter the email text:")
 
-if st.button("Predict"):
-    if input_email.strip() != "":
-        # Transform the input text using the vectorizer
-        input_data = vectorizer.transform([input_email])
+def clean_text(s): 
+    for cs in s:
+        if  not cs in string.ascii_letters:
+            s = s.replace(cs, ' ')
+    return s.rstrip('\r\n')
 
-        # Make prediction
-        prediction = model.predict(input_data)
+def remove_little(s): 
+    wordsList = s.split()
+    k_length=2
+    resultList = [element for element in wordsList if len(element) > k_length]
+    resultString = ' '.join(resultList)
+    return resultString
 
-        # Display result
-        if prediction[0] == 1:
-            st.error("This email is SPAM!")
+def lemmatize_text(text):
+    nlp = spacy.load("en_core_web_sm")
+    doc = nlp(text)
+    lemmatized_text = " ".join([token.lemma_ for token in doc])
+    return lemmatized_text
+
+def preprocess(text):
+    return lemmatize_text(remove_little(clean_text(text)))
+
+def classify_email(model,vectorizer,email):
+    prediction = model.predict(vectorizer.transform([email]))
+    return prediction
+
+def main():
+    st.title("Spam Email Detection")
+    output = st.empty()
+    status_bar = st.empty()
+
+    with st.spinner('Loading the webpage...'):
+        user_input = st.text_area('Enter the email text:', '',placeholder='Congratulations!! You have won Rs. 100000. \nClick here to Redeem!!')
+    
+    if st.button("Check for Spam"):
+        output.empty()
+        status_bar.empty()
+        if user_input:
+            with status_bar.status("Loading the model.....", expanded=True) as status:
+                model,vectorizer = load_model()
+                time.sleep(2)
+
+                # st.write("Analyzing the email.....")
+                status.update(label="Analyzing the email.....!", state="running", expanded=True)
+                user_input = preprocess(user_input)
+                time.sleep(2)
+
+                # st.write("Checking for Spam.....")
+                status.update(label="Checking for Spam.....", state="running", expanded=True)
+                prediction = classify_email(model,vectorizer,user_input)
+                time.sleep(2)
+
+                status.update(label="Detection Completed!", state="complete", expanded=False)
+
+
+            status_bar.empty()
+            if prediction == 1:
+                output.error('Spam Detected!')
+            else:
+                output.success('Not Spam')
         else:
-            st.success("This email is NOT SPAM!")
-    else:
-        st.warning("Please enter some email text.")
+            output.warning("Kindly enter the text to detect !!")
 
+if __name__ == "__main__":
+    main()
