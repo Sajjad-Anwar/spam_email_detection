@@ -1,44 +1,29 @@
-# app.py
-
 import streamlit as st
-import pandas as pd
 import pickle
 
-# Set the title and description of the app
-st.title("Spam vs Ham Email Detection App")
-st.write("""
-### Detect whether an email is Spam or Ham.
-Enter the email text below, and the trained model will predict whether it is spam or not.
-""")
+# Load the saved model and vectorizer
+model = pickle.load(open('spam_detection_model.pkl', 'rb'))
+vectorizer = pickle.load(open('count_vectorizer.pkl', 'rb'))
 
-# Input field for the email text
-email_text = st.text_area("Enter the Email Text", "")
+# Streamlit app title
+st.title("Spam Email Detection")
 
-# Load the trained model and TF-IDF vectorizer
-@st.cache_resource
-def load_model():
-    model = pickle.load(open("model.pkl", "rb"))
-    vectorizer = pickle.load(open("tfidf_vectorizer.pkl", "rb"))
-    return model, vectorizer
+# Input from the user
+input_email = st.text_area("Enter the email text:")
 
-model, tfidf = load_model()
+if st.button("Predict"):
+    if input_email.strip() != "":
+        # Transform the input text using the vectorizer
+        input_data = vectorizer.transform([input_email])
 
-# Predict when the "Detect" button is clicked
-if st.button("Detect"):
-    if not email_text.strip():
-        st.warning("Please enter the email text.")
-    else:
-        # Transform the input text using the TF-IDF vectorizer
-        text_features = tfidf.transform([email_text])
-        
-        # Make the prediction
-        prediction = model.predict(text_features)[0]
+        # Make prediction
+        prediction = model.predict(input_data)
 
-        # Display the result
-        if prediction == 1:
-            st.error("⚠️ This is a Spam email!")
+        # Display result
+        if prediction[0] == 1:
+            st.error("This email is SPAM!")
         else:
-            st.success("✅ This is a Ham (not spam) email.")
+            st.success("This email is NOT SPAM!")
+    else:
+        st.warning("Please enter some email text.")
 
-# Footer message
-st.write("Built with ❤️ using Streamlit")
